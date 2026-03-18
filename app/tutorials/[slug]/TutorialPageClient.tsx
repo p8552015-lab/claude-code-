@@ -16,7 +16,7 @@ import type { TocItem } from '@/types/tutorial';
 
 export default function TutorialPageClient() {
   const params = useParams();
-  const slug = params.slug as string;
+  const slug = typeof params.slug === 'string' ? params.slug : '';
   const tutorial = getTutorialBySlug(slug);
   const adjacent = getAdjacentTutorials(slug);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -33,11 +33,13 @@ export default function TutorialPageClient() {
   useEffect(() => {
     const timer = setTimeout(() => {
       const els = document.querySelectorAll('.prose-tutorial h2, .prose-tutorial h3');
-      const items: TocItem[] = Array.from(els).map((el) => ({
-        id: el.id,
-        text: el.textContent || '',
-        level: el.tagName === 'H2' ? 2 : 3,
-      }));
+      const items: TocItem[] = Array.from(els)
+        .filter((el) => el.id)
+        .map((el) => ({
+          id: el.id,
+          text: el.textContent || '',
+          level: el.tagName === 'H2' ? 2 : 3,
+        }));
       setHeadings(items);
     }, 100);
     return () => clearTimeout(timer);
@@ -99,8 +101,8 @@ export default function TutorialPageClient() {
                 你將學到什麼
               </h2>
               <ul className="space-y-2">
-                {tutorial.objectives.map((obj, i) => (
-                  <li key={i} className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
+                {tutorial.objectives.map((obj) => (
+                  <li key={obj} className="flex items-start gap-2 text-gray-700 dark:text-gray-300">
                     <svg className="w-5 h-5 text-claude-orange shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>

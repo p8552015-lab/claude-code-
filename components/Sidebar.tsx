@@ -84,7 +84,7 @@ export default function Sidebar({ currentSlug, open, onClose }: SidebarProps) {
                         onClick={onClose}
                         className={`flex items-center gap-2 rounded-r-lg border-l-2 py-1.5 pl-3 pr-2 text-sm transition-colors ${
                           isCurrent
-                            ? 'border-[#E87B35] bg-orange-50 font-medium text-[#E87B35] dark:bg-orange-950/20'
+                            ? 'border-claude-orange bg-orange-50 font-medium text-claude-orange dark:bg-orange-950/20'
                             : 'border-transparent text-gray-600 hover:border-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-600 dark:hover:bg-gray-700/30 dark:hover:text-gray-200'
                         }`}
                         aria-current={isCurrent ? 'page' : undefined}

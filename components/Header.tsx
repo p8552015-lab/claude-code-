@@ -20,8 +20,8 @@ export default function Header({ onSearchOpen, onMenuToggle }: HeaderProps) {
               </svg>
             </button>
           )}
-          <Link href="/" className="flex items-center gap-2 text-lg font-bold text-gray-900 transition-colors hover:text-[#E87B35] dark:text-gray-100">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#E87B35] text-sm font-bold text-white">CC</span>
+          <Link href="/" className="flex items-center gap-2 text-lg font-bold text-gray-900 transition-colors hover:text-claude-orange dark:text-gray-100">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-claude-orange text-sm font-bold text-white">CC</span>
             <span className="hidden sm:inline">Claude Code 教學</span>
           </Link>
         </div>

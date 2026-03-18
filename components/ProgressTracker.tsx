@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getProgressPercentage, getCompletedTutorials } from "@/lib/progress";
 import { TUTORIALS_META } from "@/lib/tutorials";
+import { BRAND_COLOR } from "@/lib/constants";
 
 export default function ProgressTracker() {
   const [percentage, setPercentage] = useState(0);
@@ -59,7 +60,7 @@ export default function ProgressTracker() {
           className="h-full rounded-full transition-all duration-500 ease-out"
           style={{
             width: `${percentage}%`,
-            backgroundColor: "#E87B35",
+            backgroundColor: BRAND_COLOR,
           }}
         />
       </div>

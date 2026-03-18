@@ -69,7 +69,7 @@ export default function TableOfContents({ headings }: TableOfContentsProps) {
                 type="button"
                 className={`block w-full border-l-2 py-1 text-left text-sm transition-colors duration-150 ${indent} ${
                   isActive
-                    ? "border-[#E87B35] font-medium text-[#E87B35]"
+                    ? "border-claude-orange font-medium text-claude-orange"
                     : "border-transparent text-gray-600 hover:border-gray-400 hover:text-gray-900 dark:text-gray-400 dark:hover:border-gray-500 dark:hover:text-gray-200"
                 }`}
                 aria-current={isActive ? "location" : undefined}
