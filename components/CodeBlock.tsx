@@ -16,8 +16,7 @@ export default function CodeBlock({ code, language, filename }: CodeBlockProps) 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(code);
     setCopied(true);
-    const timer = setTimeout(() => setCopied(false), COPY_RESET_DELAY_MS);
-    return () => clearTimeout(timer);
+    setTimeout(() => setCopied(false), COPY_RESET_DELAY_MS);
   }, [code]);
 
   const displayLabel = filename ?? language ?? "";

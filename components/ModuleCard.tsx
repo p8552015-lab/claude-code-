@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { TutorialMeta } from "@/types/tutorial";
+import { LEVEL_LABELS, LEVEL_STYLES, BRAND_COLOR } from "@/lib/constants";
 
 interface ModuleCardProps {
   moduleId: number;
@@ -12,18 +13,6 @@ interface ModuleCardProps {
   completedCount: number;
   tutorials: TutorialMeta[];
 }
-
-const LEVEL_LABELS: Record<string, string> = {
-  beginner: "入門",
-  intermediate: "中級",
-  advanced: "進階",
-};
-
-const LEVEL_STYLES: Record<string, string> = {
-  beginner: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
-  intermediate: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
-  advanced: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
-};
 
 export default function ModuleCard({
   moduleId,
@@ -71,7 +60,7 @@ export default function ModuleCard({
               className="h-full rounded-full transition-all duration-500 ease-out"
               style={{
                 width: `${progressPercent}%`,
-                backgroundColor: "#E87B35",
+                backgroundColor: BRAND_COLOR,
               }}
             />
           </div>

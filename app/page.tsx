@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/Header';
 import SearchDialog from '@/components/SearchDialog';
 import ModuleCard from '@/components/ModuleCard';
 import ProgressTracker from '@/components/ProgressTracker';
-import { getModules } from '@/lib/tutorials';
+import { getModules, TUTORIALS_META } from '@/lib/tutorials';
 import { getCompletedTutorials } from '@/lib/progress';
+import { useKeyboardShortcut } from '@/lib/hooks/useKeyboardShortcut';
 
 export default function HomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
@@ -17,16 +18,7 @@ export default function HomePage() {
     setCompleted(getCompletedTutorials());
   }, []);
 
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault();
-        setSearchOpen(true);
-      }
-    }
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  useKeyboardShortcut('k', useCallback(() => setSearchOpen(true), []));
 
   return (
     <div className="min-h-screen">
@@ -38,7 +30,7 @@ export default function HomePage() {
         <section className="text-center mb-16">
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-claude-orange/10 text-claude-orange text-sm font-medium mb-6">
             <span className="w-2 h-2 rounded-full bg-claude-orange animate-pulse" />
-            24 堂系統性課程
+            {TUTORIALS_META.length} 堂系統性課程
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
             <span className="text-gray-900 dark:text-white">深入掌握</span>

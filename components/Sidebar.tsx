@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { getModules } from '@/lib/tutorials';
 import { isTutorialComplete } from '@/lib/progress';
+import { LEVEL_LABELS } from '@/lib/constants';
 import type { Module } from '@/types/tutorial';
 
 interface SidebarProps {
@@ -11,12 +12,6 @@ interface SidebarProps {
   open: boolean;
   onClose: () => void;
 }
-
-const LEVEL_LABELS: Record<string, string> = {
-  beginner: '入門',
-  intermediate: '中級',
-  advanced: '進階',
-};
 
 export default function Sidebar({ currentSlug, open, onClose }: SidebarProps) {
   const [expandedModules, setExpandedModules] = useState<Set<number>>(new Set());
