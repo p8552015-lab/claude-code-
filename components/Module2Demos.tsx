@@ -3,12 +3,13 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 
 // ============================================================================
-// S07: TaskGraphDemo — 互動式 DAG 視覺化
+// S07: TaskGraphDemo — 互動式 DAG 視覺化（增強版）
 // ============================================================================
 
 interface TaskNodeData {
   id: string;
   label: string;
+  emoji: string;
   description: string;
   dependencies: string[];
   status: "pending" | "running" | "completed";
@@ -20,49 +21,58 @@ const INITIAL_TASKS: TaskNodeData[] = [
   {
     id: "lint",
     label: "Lint 檢查",
-    description: "執行 ESLint / Ruff 檢查程式碼風格與潛在問題",
+    emoji: "\u{1F50D}",
+    description: "執行 ESLint / Ruff 檢查程式碼風格與潛在問題，確保程式碼品質符合團隊規範。",
     dependencies: [],
     status: "pending",
-    x: 80,
-    y: 40,
+    x: 150,
+    y: 60,
   },
   {
     id: "test",
     label: "單元測試",
-    description: "執行 pytest / jest 確保所有測試通過",
+    emoji: "\u{1F9EA}",
+    description: "執行 pytest / jest 確保所有測試通過，驗證各模組的功能正確性。",
     dependencies: [],
     status: "pending",
-    x: 320,
-    y: 40,
+    x: 450,
+    y: 60,
   },
   {
     id: "build",
     label: "Build 建構",
-    description: "編譯程式碼並產出可部署的 artifact",
+    emoji: "\u{1F3D7}\uFE0F",
+    description: "編譯程式碼並產出可部署的 artifact，包含壓縮、打包、產生 source map。",
     dependencies: ["lint", "test"],
     status: "pending",
-    x: 200,
-    y: 140,
+    x: 300,
+    y: 190,
   },
   {
     id: "deploy",
     label: "Deploy 部署",
-    description: "將建構產出部署至 staging 環境",
+    emoji: "\u{1F680}",
+    description: "將建構產出部署至 staging 環境，執行煙霧測試確認部署成功。",
     dependencies: ["build"],
     status: "pending",
-    x: 120,
-    y: 240,
+    x: 170,
+    y: 320,
   },
   {
     id: "notify",
     label: "Notify 通知",
-    description: "發送部署完成通知到 Slack / Email",
+    emoji: "\u{1F4E8}",
+    description: "發送部署完成通知到 Slack / Email，附上版本號和變更摘要。",
     dependencies: ["deploy"],
     status: "pending",
-    x: 280,
-    y: 240,
+    x: 430,
+    y: 320,
   },
 ];
+
+// 節點尺寸常數
+const NODE_W = 150;
+const NODE_H = 56;
 
 function areDependenciesMet(
   taskId: string,
@@ -76,34 +86,84 @@ function areDependenciesMet(
   });
 }
 
+/** 產出依賴邊的貝茲曲線路徑 */
+function edgePath(from: TaskNodeData, to: TaskNodeData): string {
+  const x1 = from.x;
+  const y1 = from.y + NODE_H / 2;
+  const x2 = to.x;
+  const y2 = to.y - NODE_H / 2;
+  const dy = (y2 - y1) * 0.55;
+  return `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`;
+}
+
+/** Kahn's algorithm 拓撲排序 */
+function topoSort(tasks: TaskNodeData[]): string[] {
+  const inDeg: Record<string, number> = {};
+  const adj: Record<string, string[]> = {};
+  for (const t of tasks) {
+    inDeg[t.id] = t.dependencies.length;
+    adj[t.id] = [];
+  }
+  for (const t of tasks) {
+    for (const dep of t.dependencies) {
+      adj[dep].push(t.id);
+    }
+  }
+  const queue: string[] = [];
+  for (const t of tasks) {
+    if (inDeg[t.id] === 0) queue.push(t.id);
+  }
+  const order: string[] = [];
+  while (queue.length > 0) {
+    const node = queue.shift()!;
+    order.push(node);
+    for (const child of adj[node]) {
+      inDeg[child]--;
+      if (inDeg[child] === 0) queue.push(child);
+    }
+  }
+  return order;
+}
+
 export function TaskGraphDemo() {
   const [tasks, setTasks] = useState<TaskNodeData[]>(
     INITIAL_TASKS.map((t) => ({ ...t }))
   );
   const [selectedTask, setSelectedTask] = useState<string | null>(null);
+  const [shakingNode, setShakingNode] = useState<string | null>(null);
+  const [allDone, setAllDone] = useState(false);
+  const [autoRunning, setAutoRunning] = useState(false);
+  const autoRef = useRef(false);
+
+  // 檢查全部完成
+  useEffect(() => {
+    const done = tasks.every((t) => t.status === "completed");
+    setAllDone(done);
+  }, [tasks]);
 
   const handleNodeClick = useCallback(
     (taskId: string) => {
+      if (autoRunning) return;
       setTasks((prev) => {
         const current = prev.find((t) => t.id === taskId);
         if (!current) return prev;
 
-        // 狀態循環: pending → running → completed
         const nextStatusMap: Record<string, "pending" | "running" | "completed"> = {
           pending: "running",
           running: "completed",
           completed: "pending",
         };
-
         const nextStatus = nextStatusMap[current.status];
 
-        // 如果要進入 running，需要檢查依賴是否滿足
+        // 依賴未滿足 → 抖動 + 紅色提示
         if (nextStatus === "running" && !areDependenciesMet(taskId, prev)) {
+          setShakingNode(taskId);
+          setTimeout(() => setShakingNode(null), 600);
           setSelectedTask(taskId);
           return prev;
         }
 
-        // 如果回到 pending，下游也要重置
+        // 回到 pending → 重置下游
         if (nextStatus === "pending") {
           const resetDownstream = (id: string, allTasks: TaskNodeData[]): string[] => {
             const downstream = allTasks.filter((t) => t.dependencies.includes(id));
@@ -127,18 +187,57 @@ export function TaskGraphDemo() {
       });
       setSelectedTask(taskId);
     },
-    []
+    [autoRunning]
   );
 
   const handleReset = useCallback(() => {
+    autoRef.current = false;
+    setAutoRunning(false);
     setTasks(INITIAL_TASKS.map((t) => ({ ...t, status: "pending" as const })));
     setSelectedTask(null);
+    setAllDone(false);
   }, []);
 
-  const statusColors: Record<string, { fill: string; stroke: string; text: string; label: string }> = {
-    pending: { fill: "#f3f4f6", stroke: "#9ca3af", text: "#6b7280", label: "等待中" },
-    running: { fill: "#fef3c7", stroke: "#f59e0b", text: "#92400e", label: "執行中" },
-    completed: { fill: "#d1fae5", stroke: "#10b981", text: "#065f46", label: "已完成" },
+  /** 自動執行：依拓撲排序逐一完成 */
+  const handleAutoRun = useCallback(() => {
+    // 先重置
+    const fresh = INITIAL_TASKS.map((t) => ({ ...t, status: "pending" as const }));
+    setTasks(fresh);
+    setSelectedTask(null);
+    setAllDone(false);
+    setAutoRunning(true);
+    autoRef.current = true;
+
+    const order = topoSort(fresh);
+    let idx = 0;
+
+    const step = () => {
+      if (!autoRef.current || idx >= order.length) {
+        setAutoRunning(false);
+        autoRef.current = false;
+        return;
+      }
+      const currentId = order[idx];
+      // pending → running
+      setTasks((prev) => prev.map((t) => t.id === currentId ? { ...t, status: "running" as const } : t));
+      setSelectedTask(currentId);
+
+      setTimeout(() => {
+        if (!autoRef.current) return;
+        // running → completed
+        setTasks((prev) => prev.map((t) => t.id === currentId ? { ...t, status: "completed" as const } : t));
+        idx++;
+        setTimeout(step, 500);
+      }, 800);
+    };
+
+    setTimeout(step, 300);
+  }, []);
+
+  const statusConfig: Record<string, { fill: string; stroke: string; text: string; label: string; strokeDash?: string }> = {
+    pending: { fill: "#f3f4f6", stroke: "#9ca3af", text: "#6b7280", label: "等待中", strokeDash: "4 3" },
+    running: { fill: "#fff7ed", stroke: "#e07a2f", text: "#c2410c", label: "執行中" },
+    completed: { fill: "#dcfce7", stroke: "#22c55e", text: "#166534", label: "已完成" },
   };
 
   const selected = tasks.find((t) => t.id === selectedTask);
@@ -147,128 +246,240 @@ export function TaskGraphDemo() {
 
   return (
     <div className="my-8">
-      <div className="rounded-2xl border-2 border-gray-200 bg-white p-6 dark:border-gray-700 dark:bg-gray-800">
-        {/* SVG DAG */}
-        <div className="relative overflow-x-auto">
-          <svg viewBox="0 0 400 300" className="mx-auto w-full max-w-lg" style={{ minHeight: 280 }}>
-            {/* 繪製依賴箭頭 */}
-            {tasks.map((task) =>
-              task.dependencies.map((depId) => {
-                const dep = tasks.find((t) => t.id === depId);
-                if (!dep) return null;
-                return (
-                  <g key={`${depId}-${task.id}`}>
-                    <defs>
-                      <marker
-                        id={`arrow-${depId}-${task.id}`}
-                        viewBox="0 0 10 10"
-                        refX="10"
-                        refY="5"
-                        markerWidth="6"
-                        markerHeight="6"
-                        orient="auto-start-reverse"
-                      >
+      {/* CSS 動畫 */}
+      <style>{`
+        @keyframes dagPulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
+        }
+        @keyframes dagShake {
+          0%, 100% { transform: translateX(0); }
+          20% { transform: translateX(-6px); }
+          40% { transform: translateX(6px); }
+          60% { transform: translateX(-4px); }
+          80% { transform: translateX(4px); }
+        }
+        @keyframes dagFlowDash {
+          to { stroke-dashoffset: -20; }
+        }
+        @keyframes dagCelebrate {
+          0% { transform: scale(0.5); opacity: 0; }
+          60% { transform: scale(1.15); opacity: 1; }
+          100% { transform: scale(1); opacity: 1; }
+        }
+        .dag-pulse { animation: dagPulse 1.6s ease-in-out infinite; }
+        .dag-shake { animation: dagShake 0.4s ease-in-out; }
+        .dag-flow { animation: dagFlowDash 1s linear infinite; }
+        .dag-celebrate { animation: dagCelebrate 0.5s ease-out forwards; }
+      `}</style>
+
+      <div className="rounded-2xl border-2 border-gray-200 bg-white p-4 sm:p-6 dark:border-gray-700 dark:bg-gray-800">
+        {/* 標題列 + 按鈕 */}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+            CI/CD 任務圖
+          </h3>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={handleAutoRun}
+              disabled={autoRunning}
+              className="rounded-lg bg-claude-orange px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {autoRunning ? "執行中..." : "自動執行"}
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
+            >
+              重置
+            </button>
+          </div>
+        </div>
+
+        {/* 慶祝效果 */}
+        {allDone && (
+          <div className="dag-celebrate mb-4 flex items-center justify-center gap-2 rounded-xl bg-green-50 py-3 text-green-700 dark:bg-green-900/20 dark:text-green-400">
+            <span className="text-2xl">{"\u{1F389}"}</span>
+            <span className="text-sm font-bold">全部完成！所有任務已成功執行。</span>
+          </div>
+        )}
+
+        {/* 主要佈局：SVG + 圖例 */}
+        <div className="flex flex-col gap-4 lg:flex-row">
+          {/* SVG DAG */}
+          <div className="relative min-w-0 flex-1 overflow-x-auto">
+            <svg viewBox="0 0 600 400" className="mx-auto w-full" style={{ minHeight: 320 }}>
+              <defs>
+                {/* 箭頭 marker：灰色 */}
+                <marker id="dag-arrow-gray" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+                  <path d="M 0 1 L 11 6 L 0 11 z" fill="#9ca3af" />
+                </marker>
+                {/* 箭頭 marker：綠色 */}
+                <marker id="dag-arrow-green" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="8" markerHeight="8" orient="auto">
+                  <path d="M 0 1 L 11 6 L 0 11 z" fill="#22c55e" />
+                </marker>
+                {/* 漸變：pending 邊 */}
+                <linearGradient id="dag-grad-gray" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#d1d5db" />
+                  <stop offset="100%" stopColor="#9ca3af" />
+                </linearGradient>
+                {/* 漸變：completed 邊 */}
+                <linearGradient id="dag-grad-green" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor="#4ade80" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+              </defs>
+
+              {/* 依賴邊（貝茲曲線） */}
+              {tasks.map((task) =>
+                task.dependencies.map((depId) => {
+                  const dep = tasks.find((t) => t.id === depId);
+                  if (!dep) return null;
+                  const isCompleted = dep.status === "completed";
+                  const d = edgePath(dep, task);
+                  return (
+                    <g key={`edge-${depId}-${task.id}`}>
+                      {/* 底層粗線 */}
+                      <path
+                        d={d}
+                        fill="none"
+                        stroke={isCompleted ? "url(#dag-grad-green)" : "url(#dag-grad-gray)"}
+                        strokeWidth={isCompleted ? 3 : 2}
+                        strokeLinecap="round"
+                        markerEnd={isCompleted ? "url(#dag-arrow-green)" : "url(#dag-arrow-gray)"}
+                      />
+                      {/* 流動虛線動畫（完成時） */}
+                      {isCompleted && (
                         <path
-                          d="M 0 0 L 10 5 L 0 10 z"
-                          fill={
-                            dep.status === "completed" ? "#10b981" : "#9ca3af"
-                          }
+                          d={d}
+                          fill="none"
+                          stroke="#bbf7d0"
+                          strokeWidth={2}
+                          strokeDasharray="6 8"
+                          strokeLinecap="round"
+                          className="dag-flow"
                         />
-                      </marker>
-                    </defs>
-                    <line
-                      x1={dep.x}
-                      y1={dep.y + 20}
-                      x2={task.x}
-                      y2={task.y - 20}
-                      stroke={dep.status === "completed" ? "#10b981" : "#d1d5db"}
-                      strokeWidth={2}
-                      markerEnd={`url(#arrow-${depId}-${task.id})`}
+                      )}
+                    </g>
+                  );
+                })
+              )}
+
+              {/* 節點 */}
+              {tasks.map((task) => {
+                const cfg = statusConfig[task.status];
+                const isSelected = selectedTask === task.id;
+                const isShaking = shakingNode === task.id;
+                const halfW = NODE_W / 2;
+                const halfH = NODE_H / 2;
+
+                return (
+                  <g
+                    key={task.id}
+                    onClick={() => handleNodeClick(task.id)}
+                    className={`cursor-pointer ${isShaking ? "dag-shake" : ""} ${task.status === "running" ? "dag-pulse" : ""}`}
+                    style={{ transformOrigin: `${task.x}px ${task.y}px` }}
+                  >
+                    {/* 選中時的光暈 */}
+                    {isSelected && (
+                      <rect
+                        x={task.x - halfW - 4}
+                        y={task.y - halfH - 4}
+                        width={NODE_W + 8}
+                        height={NODE_H + 8}
+                        rx={14}
+                        fill="none"
+                        stroke="#e07a2f"
+                        strokeWidth={2}
+                        strokeOpacity={0.4}
+                      />
+                    )}
+                    {/* 主矩形 */}
+                    <rect
+                      x={task.x - halfW}
+                      y={task.y - halfH}
+                      width={NODE_W}
+                      height={NODE_H}
+                      rx={12}
+                      fill={cfg.fill}
+                      stroke={isSelected ? "#e07a2f" : isShaking ? "#ef4444" : cfg.stroke}
+                      strokeWidth={isSelected ? 2.5 : 2}
+                      strokeDasharray={cfg.strokeDash || "none"}
                     />
+                    {/* Emoji */}
+                    <text
+                      x={task.x - halfW + 16}
+                      y={task.y - 4}
+                      fontSize={16}
+                      dominantBaseline="middle"
+                    >
+                      {task.emoji}
+                    </text>
+                    {/* 任務名稱 */}
+                    <text
+                      x={task.x - halfW + 36}
+                      y={task.y - 6}
+                      fontSize={13}
+                      fontWeight={700}
+                      fill={cfg.text}
+                      dominantBaseline="middle"
+                    >
+                      {task.label}
+                    </text>
+                    {/* 狀態標籤 */}
+                    <text
+                      x={task.x - halfW + 36}
+                      y={task.y + 14}
+                      fontSize={10}
+                      fill={cfg.text}
+                      opacity={0.7}
+                      dominantBaseline="middle"
+                    >
+                      {cfg.label}
+                    </text>
+                    {/* 完成打勾 */}
+                    {task.status === "completed" && (
+                      <text
+                        x={task.x + halfW - 18}
+                        y={task.y + 1}
+                        fontSize={16}
+                        dominantBaseline="middle"
+                        textAnchor="middle"
+                      >
+                        {"\u2705"}
+                      </text>
+                    )}
                   </g>
                 );
-              })
-            )}
+              })}
+            </svg>
+          </div>
 
-            {/* 繪製節點 */}
-            {tasks.map((task) => {
-              const colors = statusColors[task.status];
-              const isSelected = selectedTask === task.id;
-              const canRun = areDependenciesMet(task.id, tasks);
-              return (
-                <g
-                  key={task.id}
-                  onClick={() => handleNodeClick(task.id)}
-                  className="cursor-pointer"
-                >
-                  <rect
-                    x={task.x - 55}
-                    y={task.y - 18}
-                    width={110}
-                    height={36}
-                    rx={8}
-                    fill={colors.fill}
-                    stroke={isSelected ? "#e07a2f" : colors.stroke}
-                    strokeWidth={isSelected ? 3 : 2}
-                  />
-                  <text
-                    x={task.x}
-                    y={task.y + 1}
-                    textAnchor="middle"
-                    dominantBaseline="middle"
-                    fontSize={13}
-                    fontWeight={600}
-                    fill={colors.text}
-                  >
-                    {task.label}
-                  </text>
-                  {/* 狀態小圓點 */}
-                  <circle
-                    cx={task.x + 45}
-                    cy={task.y - 8}
-                    r={5}
-                    fill={
-                      task.status === "completed"
-                        ? "#10b981"
-                        : task.status === "running"
-                        ? "#f59e0b"
-                        : canRun
-                        ? "#60a5fa"
-                        : "#d1d5db"
-                    }
-                  />
-                </g>
-              );
-            })}
-          </svg>
-        </div>
-
-        {/* 說明面板 */}
-        <div className="mt-4 flex items-center justify-between">
-          <div className="flex gap-4 text-xs">
-            {Object.entries(statusColors).map(([status, c]) => (
-              <span key={status} className="flex items-center gap-1">
+          {/* 圖例（右側垂直排列） */}
+          <div className="flex shrink-0 flex-row justify-center gap-3 lg:w-28 lg:flex-col lg:justify-start lg:pt-2">
+            {Object.entries(statusConfig).map(([status, c]) => (
+              <div key={status} className="flex items-center gap-2 text-xs">
                 <span
-                  className="inline-block h-3 w-3 rounded-full border"
+                  className="inline-block h-3 w-3 rounded-md border"
                   style={{ backgroundColor: c.fill, borderColor: c.stroke }}
                 />
-                {c.label}
-              </span>
+                <span className="text-gray-600 dark:text-gray-400">{c.label}</span>
+              </div>
             ))}
+            <div className="hidden items-center gap-2 text-xs lg:flex">
+              <span className="inline-block h-0.5 w-3 bg-gray-300" />
+              <span className="text-gray-500 dark:text-gray-500">依賴關係</span>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="rounded-lg border border-gray-300 px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-100 dark:border-gray-600 dark:text-gray-400 dark:hover:bg-gray-700"
-          >
-            重置
-          </button>
         </div>
 
-        {/* 選中節點的詳細資訊 */}
+        {/* 選中節點的說明面板 */}
         {selected && (
-          <div className="mt-4 rounded-lg border border-claude-orange/30 bg-claude-orange/5 p-4 dark:bg-claude-orange/10">
+          <div className="mt-4 rounded-xl border border-claude-orange/30 bg-claude-orange/5 p-4 dark:bg-claude-orange/10">
             <div className="flex items-center gap-2">
+              <span className="text-lg">{selected.emoji}</span>
               <span className="font-semibold text-claude-orange">
                 {selected.label}
               </span>
@@ -277,22 +488,25 @@ export function TaskGraphDemo() {
                   selected.status === "completed"
                     ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
                     : selected.status === "running"
-                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                    ? "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400"
                     : "bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
                 }`}
               >
-                {statusColors[selected.status].label}
+                {statusConfig[selected.status].label}
               </span>
             </div>
-            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
               {selected.description}
             </p>
             {selected.dependencies.length > 0 && (
               <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
-                依賴：{selected.dependencies.join(", ")}
+                {"\u{1F517}"} 依賴：{selected.dependencies.map((d) => {
+                  const dep = tasks.find((t) => t.id === d);
+                  return dep ? dep.label : d;
+                }).join("、")}
                 {depsBlocked && (
-                  <span className="ml-2 font-medium text-red-500">
-                    (依賴尚未完成，無法啟動)
+                  <span className="ml-2 font-semibold text-red-500">
+                    {"\u26A0\uFE0F"} 依賴尚未完成，無法啟動！
                   </span>
                 )}
               </p>
@@ -301,7 +515,7 @@ export function TaskGraphDemo() {
         )}
 
         <p className="mt-3 text-center text-xs text-gray-400 dark:text-gray-500">
-          點擊節點切換狀態：pending → running → completed。依賴未完成的任務無法啟動。
+          點擊節點切換狀態：pending {"\u2192"} running {"\u2192"} completed。依賴未完成的任務會抖動提示。
         </p>
       </div>
     </div>
