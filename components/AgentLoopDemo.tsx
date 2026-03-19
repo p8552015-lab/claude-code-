@@ -76,7 +76,7 @@ export function AgentLoopFlowDiagram() {
               <button
                 type="button"
                 onClick={() => setActiveNode(isActive ? null : node.id)}
-                className={`group relative flex items-center gap-3 rounded-xl border-2 px-5 py-3 text-left transition-all duration-200 ${
+                className={`group relative flex items-center gap-3 rounded-xl border-2 px-5 py-3 text-left transition-all duration-200 cursor-pointer select-none ${
                   isActive
                     ? "border-claude-orange bg-claude-orange/10 shadow-lg scale-105"
                     : "border-gray-200 bg-white hover:border-claude-orange/50 hover:shadow-md dark:border-gray-700 dark:bg-gray-800"
@@ -92,8 +92,19 @@ export function AgentLoopFlowDiagram() {
                 >
                   {node.label}
                 </span>
-                <span className="ml-2 text-xs text-gray-400">點擊查看</span>
+                <span className={`ml-2 text-xs ${isActive ? "text-claude-orange" : "text-gray-400"}`}>
+                  {isActive ? "▼" : "▶ 點擊查看"}
+                </span>
               </button>
+
+              {/* 內嵌說明面板 — 直接展開在節點下方 */}
+              {isActive && (
+                <div className="mt-2 w-full max-w-md rounded-lg border border-claude-orange/30 bg-claude-orange/5 p-4 text-left dark:bg-claude-orange/10">
+                  <p className="text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+                    {node.description}
+                  </p>
+                </div>
+              )}
 
               {/* 箭頭 */}
               {i < FLOW_NODES.length - 1 && (
@@ -151,20 +162,6 @@ export function AgentLoopFlowDiagram() {
         })}
       </div>
 
-      {/* 說明面板 */}
-      {active && (
-        <div className="mt-6 rounded-xl border-2 border-claude-orange/30 bg-claude-orange/5 p-5 transition-all dark:bg-claude-orange/10">
-          <div className="flex items-center gap-3 mb-2">
-            <span className="text-2xl">{active.icon}</span>
-            <h4 className="text-lg font-bold text-gray-900 dark:text-white">
-              {active.label}
-            </h4>
-          </div>
-          <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-            {active.description}
-          </p>
-        </div>
-      )}
     </div>
   );
 }
