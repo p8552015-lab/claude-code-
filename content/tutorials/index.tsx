@@ -9,6 +9,12 @@ import {
   ComparisonCards,
   StopReasonCards,
 } from "@/components/AgentLoopDemo";
+import {
+  ToolboxCards,
+  PermissionLevels,
+  ToolExecutionFlow,
+  PermissionConfigBuilder,
+} from "@/components/ToolSystemDemo";
 
 // ============================================================================
 // Module 1: Core Agent -- Full Content (S01-S06)
@@ -178,216 +184,97 @@ function S02ToolSystem() {
     <>
       <h2 id="tool-system-overview">工具系統概覽</h2>
       <p>
-        Claude Code 透過工具系統（Tool System）與外部環境互動。工具是代理與檔案系統、
-        終端機、程式碼庫之間的橋梁。每一個工具都有明確的功能範圍、輸入參數格式與回傳值結構。
-        理解工具系統的設計哲學，能幫助你更有效地引導代理完成任務。
+        <strong>一句話解釋：</strong>工具系統就是 Claude Code 的「手和腳」— 讓 AI 不只會說，還會做。
       </p>
       <p>
-        工具系統的核心設計原則是：<strong>每個工具做好一件事</strong>。
-        Read 工具只負責讀取檔案、Bash 工具只負責執行指令、Grep 工具只負責搜尋內容。
-        這種單一職責設計讓代理能夠靈活組合工具來完成複雜任務。
+        想像你請了一個超強工程師，但他被關在一個沒有鍵盤、沒有螢幕的房間裡。
+        他再聰明也沒用，因為他碰不到任何東西。<strong>工具系統</strong>就是打開那扇門的鑰匙 —
+        它讓 Claude 可以讀檔案、寫程式、跑測試、搜尋程式碼。
       </p>
 
-      <h2 id="built-in-tools">內建工具詳解</h2>
-
-      <h3 id="tool-bash">Bash -- 指令執行</h3>
-      <p>
-        Bash 工具是功能最強大也最需要謹慎使用的工具。它可以在系統 shell 中執行任意指令，
-        包括編譯、測試、版本控制、套件管理等操作。
-      </p>
-      <CodeBlock
-        language="typescript"
-        filename="bash-tool-interface.ts"
-        code={`interface BashToolInput {
-  command: string;         // 要執行的 shell 指令
-  description?: string;    // 指令說明（方便審計）
-  timeout?: number;        // 逾時毫秒（最大 600000）
-  run_in_background?: boolean; // 是否背景執行
-}`}
-      />
-      <CalloutBox type="warning" title="Bash 安全注意事項">
-        Bash 工具可以執行任何 shell 指令，包括刪除檔案、修改系統設定等破壞性操作。
-        務必透過權限設定來限制代理可以執行的指令範圍。永遠不要在未經確認的情況下
-        允許代理執行 <code>rm -rf</code>、<code>git push --force</code> 等指令。
+      <CalloutBox type="insight" title="核心設計原則">
+        每個工具做好一件事。Read 只讀、Bash 只跑、Grep 只搜。
+        這種單一職責設計讓代理能靈活組合工具來完成複雜任務。
       </CalloutBox>
 
-      <h3 id="tool-read">Read -- 檔案讀取</h3>
+      <h2 id="toolbox">工具箱 — 8 大內建工具</h2>
       <p>
-        Read 工具用於讀取檔案系統中的檔案內容。它支援文字檔案、圖片、PDF 與 Jupyter Notebook，
-        並可透過 offset 和 limit 參數控制讀取範圍，避免一次讀取過大的檔案。
+        Claude Code 配備了 8 個內建工具。<strong>點擊任一工具卡片</strong>查看詳細說明和 Python 範例：
       </p>
-      <CodeBlock
-        language="typescript"
-        filename="read-tool-interface.ts"
-        code={`interface ReadToolInput {
-  file_path: string;  // 必須是絕對路徑
-  offset?: number;    // 起始行號
-  limit?: number;     // 讀取行數
-  pages?: string;     // PDF 頁碼範圍，例如 "1-5"
-}`}
-      />
+      <ToolboxCards />
 
-      <h3 id="tool-write-edit">Write 與 Edit -- 檔案修改</h3>
+      <h2 id="permission-model">權限模型 — 三道安全閘門</h2>
       <p>
-        Write 工具用於建立新檔案或完整覆寫現有檔案。Edit 工具則用於精確的字串替換，
-        只傳送差異部分，效率更高且更安全。
+        工具強大，但也需要控制。Claude Code 用三個層級來管理工具權限。
+        <strong>點擊每個層級</strong>查看哪些工具屬於該層級：
       </p>
-      <CodeBlock
-        language="typescript"
-        filename="edit-tool-interface.ts"
-        code={`interface EditToolInput {
-  file_path: string;     // 檔案絕對路徑
-  old_string: string;    // 要被替換的原始文字
-  new_string: string;    // 替換後的新文字
-  replace_all?: boolean; // 是否替換所有出現的位置
-}
+      <PermissionLevels />
 
-interface WriteToolInput {
-  file_path: string;  // 檔案絕對路徑
-  content: string;    // 完整的檔案內容
-}`}
-      />
-
-      <CalloutBox type="tip" title="優先使用 Edit">
-        修改現有檔案時，優先使用 Edit 工具而非 Write。Edit 只傳送差異，
-        減少 token 消耗，且能避免意外覆蓋未變更的內容。Write 只適合建立新檔案
-        或確實需要完整重寫的場景。
-      </CalloutBox>
-
-      <h3 id="tool-glob-grep">Glob 與 Grep -- 搜尋工具</h3>
-      <p>
-        Glob 用於依檔案名稱模式搜尋檔案（例如 <code>**/*.ts</code>），
-        Grep 用於依內容模式搜尋檔案內容（基於 ripgrep）。
-        這兩個工具是代理理解程式碼庫結構的基礎。
-      </p>
-      <CodeBlock
-        language="typescript"
-        filename="search-tools-interface.ts"
-        code={`interface GlobToolInput {
-  pattern: string;  // glob 模式，例如 "src/**/*.tsx"
-  path?: string;    // 搜尋起始目錄
-}
-
-interface GrepToolInput {
-  pattern: string;          // 正規表示式
-  path?: string;            // 搜尋目錄
-  glob?: string;            // 檔案過濾模式
-  output_mode?: "content" | "files_with_matches" | "count";
-  context?: number;         // 上下文行數
-}`}
-      />
-
-      <h3 id="tool-agent">Agent -- 子代理工具</h3>
-      <p>
-        Agent 工具用於建立隔離的子代理來處理特定子任務。子代理擁有獨立的上下文窗口，
-        不會污染主對話的上下文。詳細說明請參考「子代理與上下文隔離」章節。
-      </p>
-
-      <h3 id="tool-todowrite">TodoWrite -- 任務規劃工具</h3>
-      <p>
-        TodoWrite 工具用於建立和管理結構化的任務清單，幫助代理追蹤複雜任務的進度。
-        詳細說明請參考「使用 TodoWrite 進行規劃」章節。
-      </p>
-
-      <h2 id="permission-model">工具權限模型</h2>
-      <p>
-        Claude Code 的工具權限模型定義了哪些工具可以自動執行、哪些需要使用者確認、
-        哪些完全禁止。權限分為三個層級：
-      </p>
-      <ul>
-        <li>
-          <strong>auto-allow（自動允許）</strong>：唯讀工具如 Read、Glob、Grep
-          預設為自動允許，因為它們不會修改系統狀態。
-        </li>
-        <li>
-          <strong>ask（需要確認）</strong>：寫入與執行類工具如 Write、Edit、Bash
-          預設需要使用者確認，尤其是破壞性操作。
-        </li>
-        <li>
-          <strong>deny（禁止）</strong>：可以完全禁止特定工具或特定指令，
-          防止代理執行不該執行的操作。
-        </li>
-      </ul>
-
-      <CodeBlock
-        language="json"
-        filename=".claude/settings.json"
-        code={`{
-  "permissions": {
-    "allow": [
-      "Read",
-      "Glob",
-      "Grep",
-      "Bash(npm test)",
-      "Bash(npm run build)",
-      "Bash(git status)",
-      "Bash(git diff)",
-      "Bash(git log)"
-    ],
-    "deny": [
-      "Bash(rm -rf *)",
-      "Bash(git push --force)"
-    ]
-  }
-}`}
-      />
-
-      <h2 id="configuring-tools">工具配置策略</h2>
-      <p>
-        有效的工具配置需要在安全性與便利性之間取得平衡。以下是建議的配置策略：
-      </p>
-      <ol>
-        <li>
-          <strong>白名單模式</strong>：只允許代理使用特定的指令組合，
-          適合生產環境或敏感專案。
-        </li>
-        <li>
-          <strong>漸進式開放</strong>：從嚴格限制開始，根據代理的實際需求
-          逐步開放權限，每次開放都記錄原因。
-        </li>
-        <li>
-          <strong>指令級控制</strong>：利用 <code>Bash(specific_command)</code>
-          語法對 Bash 工具進行指令級的精細控制。
-        </li>
-      </ol>
-
-      <CalloutBox type="insight" title="安全第一原則">
-        工具權限的設計應遵循最小權限原則（Principle of Least Privilege）。
+      <CalloutBox type="warning" title="最小權限原則">
         只授予代理完成當前任務所需的最低權限。權限過於寬鬆不會讓代理更聰明，
         只會增加意外損害的風險。
       </CalloutBox>
 
-      <h2 id="tool-result-handling">工具結果處理</h2>
+      <h2 id="execution-flow">工具執行流程</h2>
       <p>
-        每個工具執行完成後都會回傳結構化的結果。這個結果會被加入對話歷史，
-        供模型在下一次推理時參考。理解工具結果的格式對於除錯至關重要：
+        當 Claude 決定使用工具時，背後會經過四個階段。
+        <strong>點擊「下一步」</strong>逐步走過整個流程：
       </p>
+      <ToolExecutionFlow />
+
+      <h2 id="permission-config">權限配置建構器</h2>
+      <p>
+        權限設定存放在 <code>.claude/settings.json</code> 中。
+        下方是互動式配置工具 — <strong>點擊權限標籤切換層級</strong>，右側即時預覽設定檔：
+      </p>
+      <PermissionConfigBuilder />
+
+      <h2 id="config-strategy">配置策略建議</h2>
+      <ol>
+        <li>
+          <strong>白名單模式</strong> — 只允許特定指令，適合生產環境
+        </li>
+        <li>
+          <strong>漸進式開放</strong> — 從嚴格開始，根據需求逐步放寬
+        </li>
+        <li>
+          <strong>指令級控制</strong> — 用 <code>Bash(pytest)</code> 語法精細控制
+        </li>
+      </ol>
+
       <CodeBlock
-        language="typescript"
-        filename="tool-result-format.ts"
-        code={`// 工具結果訊息格式
-interface ToolResultMessage {
-  type: "tool_result";
-  tool_use_id: string;  // 對應工具呼叫的 ID
-  content: string;      // 工具輸出內容
-  is_error?: boolean;   // 是否為錯誤結果
-}
+        language="python"
+        filename="permission_check.py"
+        code={`# 權限檢查的核心邏輯
+def check_tool_permission(tool: str, command: str = "") -> str:
+    """
+    回傳 'allow' | 'ask' | 'deny'
+    """
+    settings = load_settings(".claude/settings.json")
 
-// 範例：成功讀取檔案
-{
-  type: "tool_result",
-  tool_use_id: "toolu_01abc123",
-  content: "     1  import React from 'react';\\n     2  ..."
-}
+    # 1. 檢查 deny 清單（最高優先）
+    full_name = f"{tool}({command})" if command else tool
+    if full_name in settings["permissions"]["deny"]:
+        return "deny"  # 直接拒絕，不問使用者
 
-// 範例：指令執行失敗
-{
-  type: "tool_result",
-  tool_use_id: "toolu_01xyz789",
-  content: "Command failed with exit code 1: npm test\\n...",
-  is_error: true
-}`}
+    # 2. 檢查 allow 清單
+    if full_name in settings["permissions"]["allow"]:
+        return "allow"  # 自動執行，不需確認
+
+    # 3. 都不在 → 預設詢問使用者
+    return "ask"
+
+# 範例：
+check_tool_permission("Read")            # → "allow"
+check_tool_permission("Bash", "pytest")  # → "allow"
+check_tool_permission("Edit")            # → "ask"
+check_tool_permission("Bash", "rm -rf")  # → "deny"`}
       />
+
+      <CalloutBox type="tip" title="實務建議">
+        新專案建議從這個配置開始：允許所有唯讀工具（Read, Glob, Grep）+ 常用測試指令（pytest, git status），
+        其餘全部設為需要確認。使用一段時間後，再把常用且安全的操作加入 allow 清單。
+      </CalloutBox>
     </>
   );
 }
