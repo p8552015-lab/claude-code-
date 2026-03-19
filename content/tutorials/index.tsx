@@ -3,6 +3,12 @@
 import React from "react";
 import CodeBlock from "@/components/CodeBlock";
 import CalloutBox from "@/components/CalloutBox";
+import {
+  AgentLoopFlowDiagram,
+  AgentLoopStepper,
+  ComparisonCards,
+  StopReasonCards,
+} from "@/components/AgentLoopDemo";
 
 // ============================================================================
 // Module 1: Core Agent -- Full Content (S01-S06)
@@ -13,106 +19,72 @@ function S01AgentLoop() {
     <>
       <h2 id="what-is-agent-loop">什麼是 Agent Loop</h2>
       <p>
-        Agent Loop（代理迴圈）是 Claude Code 的核心運作引擎。它定義了代理如何接收使用者的輸入、
-        決定下一步行動、呼叫工具執行操作、接收工具回傳結果，並根據結果決定是否繼續行動或回覆使用者。
-        這個持續迭代的循環就是 Claude Code 能夠自主完成複雜任務的根本機制。
+        <strong>一句話解釋：</strong>Agent Loop 就是一個「想 → 做 → 看結果 → 再想」的不斷循環，直到任務完成為止。
       </p>
       <p>
-        理解 Agent Loop 對於有效使用 Claude Code 至關重要，因為它決定了代理的行為模式、
-        回應策略以及資源消耗方式。當你能預判代理在迴圈中的行為，就能撰寫出更精準的提示語，
-        減少不必要的迭代，並提升整體工作效率。
+        想像你叫一個超強實習生幫你完成任務。他不會只回答「你可以這樣做」然後就沒了 —
+        他會自己去讀程式碼、自己寫、自己測試、發現 bug 自己修，全部搞定才回來跟你說「做好了」。
+        這就是 Agent Loop 的核心精神。
       </p>
-
-      <h2 id="loop-flow-diagram">迴圈流程圖</h2>
-      <p>
-        Agent Loop 的完整執行流程可以用以下的流程圖來理解。每一輪迭代都從接收訊息開始，
-        經過模型推理後，根據 <code>stop_reason</code> 決定下一步行動：
-      </p>
-      <div className="ascii-diagram">
-        <pre>{`
-  +------------------+
-  |   使用者輸入      |
-  +--------+---------+
-           |
-           v
-  +------------------+
-  |   傳送至 Claude   |
-  |   (含 system     |
-  |    prompt + 歷史) |
-  +--------+---------+
-           |
-           v
-  +------------------+
-  |   Claude 回應     |
-  |   + stop_reason  |
-  +--------+---------+
-           |
-     +-----+------+
-     |            |
-     v            v
- stop_reason  stop_reason
- = end_turn   = tool_use
-     |            |
-     v            v
- +--------+  +-----------+
- | 輸出給  |  | 執行工具   |
- | 使用者  |  | (Bash,    |
- +--------+  |  Read...) |
-              +-----+-----+
-                    |
-                    v
-              +-----------+
-              | 工具結果   |
-              | 加入對話   |
-              +-----+-----+
-                    |
-                    +---> 回到「傳送至 Claude」
-        `}</pre>
-      </div>
 
       <CalloutBox type="insight" title="核心概念">
-        Agent Loop 並非單次請求-回應模式。它是一個持續迭代的迴圈，直到模型判定任務完成
-        （回傳 <code>end_turn</code>）或達到系統限制才會停止。這意味著一個使用者指令
-        可能觸發數十次工具呼叫與模型推理。
+        Agent Loop 是 Claude Code 能「自己動手做事」的執行引擎。一個指令可能觸發數十次工具呼叫與模型推理，
+        全程自動完成，不需要你一步步指揮。
       </CalloutBox>
 
-      <h2 id="stop-reasons">Stop Reason 詳解</h2>
+      <h2 id="comparison">傳統 AI vs Agent Loop</h2>
       <p>
-        <code>stop_reason</code> 是 Claude API 回應中的關鍵欄位，它告訴 Agent Loop
-        應該如何處理當前的回應。理解每種 stop_reason 的含義對於除錯和優化代理行為非常重要。
+        先理解差異，才能感受 Agent Loop 的威力：
       </p>
+      <ComparisonCards />
 
-      <h3 id="end-turn">end_turn -- 任務完成</h3>
+      <h2 id="stop-reasons">stop_reason — 迴圈的開關</h2>
       <p>
-        當模型認為已經完成使用者的請求、回答了問題，或者需要向使用者確認才能繼續時，
-        會回傳 <code>end_turn</code>。此時 Agent Loop 結束，將最終回應呈現給使用者。
+        Agent Loop 怎麼知道要繼續還是停下來？答案就是 <code>stop_reason</code>。
+        每次 Claude 回應時都會帶上這個訊號，告訴系統下一步該怎麼做。
+        點擊下方卡片查看詳細說明：
       </p>
+      <StopReasonCards />
 
-      <h3 id="tool-use">tool_use -- 需要執行工具</h3>
+      <h2 id="flow-diagram">互動式流程圖</h2>
       <p>
-        這是最常見的 stop_reason。當模型判斷需要讀取檔案、執行指令、搜尋程式碼或
-        進行其他操作時，會回傳一個或多個工具呼叫請求。Agent Loop 會執行這些工具，
-        收集結果，然後將結果作為新的訊息送回模型。
+        下面是 Agent Loop 的完整執行流程。<strong>點擊每個節點</strong>可以查看詳細說明：
       </p>
+      <AgentLoopFlowDiagram />
 
-      <h3 id="max-tokens">max_tokens -- 回應長度上限</h3>
+      <h2 id="real-example">實戰範例：逐步走過一次完整迴圈</h2>
       <p>
-        當模型的單次回應達到 token 上限時觸發。Agent Loop 通常會將已生成的部分內容
-        保留在對話歷史中，並讓模型繼續生成後續內容。這在生成長篇程式碼或詳細報告時較常見。
+        假設你對 Claude Code 說：
       </p>
+      <p className="rounded-xl border-2 border-claude-orange/30 bg-claude-orange/5 px-5 py-3 text-lg font-medium dark:bg-claude-orange/10">
+        「幫我在 maia_router.py 裡新增一個 /health 健康檢查的 API endpoint」
+      </p>
+      <p>
+        你只說了這一句話。接下來，Claude Code 背後自動跑了 <strong>6 輪迭代</strong>。
+        點擊「下一步」逐步走過整個過程：
+      </p>
+      <AgentLoopStepper />
 
+      <CalloutBox type="insight" title="三個重點">
+        <strong>1. 一個指令觸發 6 次迭代。</strong>你只說了一句話，Claude 自己跑了 6 輪「思考 → 行動 → 觀察」的迴圈。
+        <br /><br />
+        <strong>2. 它會自我修正。</strong>第 4 步測試失敗了，Claude 沒有停下來問你，而是自己分析錯誤、修復、再測試。
+        <br /><br />
+        <strong>3. stop_reason 是迴圈的開關。</strong>前 5 次都回傳 tool_use（還有事要做），最後回傳 end_turn（做完了）。
+      </CalloutBox>
+
+      <h2 id="pseudocode">Agent Loop 虛擬碼</h2>
+      <p>
+        理解了概念後，來看程式碼層面的實現。Agent Loop 的核心其實就是一個 <code>while(true)</code> 迴圈：
+      </p>
       <CodeBlock
         language="typescript"
-        filename="agent-loop-pseudocode.ts"
-        code={`// Agent Loop 虛擬碼
-async function agentLoop(userMessage: string): Promise<string> {
-  // 初始化對話歷史
-  const messages: Message[] = [
-    { role: "user", content: userMessage }
-  ];
+        filename="agent-loop.ts"
+        code={`async function agentLoop(userMessage: string) {
+  const messages = [{ role: "user", content: userMessage }];
 
   while (true) {
-    // 將對話歷史送入模型
+    // 1. 將對話歷史送入 Claude
     const response = await claude.messages.create({
       model: "claude-sonnet-4-20250514",
       system: systemPrompt,
@@ -120,24 +92,23 @@ async function agentLoop(userMessage: string): Promise<string> {
       tools: availableTools,
     });
 
-    // 將模型回應加入對話歷史
+    // 2. 將回應加入對話歷史
     messages.push({ role: "assistant", content: response.content });
 
-    // 根據 stop_reason 決定下一步
+    // 3. 根據 stop_reason 決定下一步
     switch (response.stop_reason) {
       case "end_turn":
-        // 任務完成，回傳結果
-        return extractTextContent(response.content);
+        // ✅ 任務完成，回傳結果
+        return extractText(response.content);
 
       case "tool_use":
-        // 執行工具並收集結果
-        const toolResults = await executeTools(response.content);
-        messages.push({ role: "user", content: toolResults });
-        // 繼續迴圈
-        break;
+        // 🔧 執行工具，結果塞回對話
+        const results = await executeTools(response.content);
+        messages.push({ role: "user", content: results });
+        break; // 繼續迴圈
 
       case "max_tokens":
-        // 回應被截斷，讓模型繼續
+        // ✂️ 被截斷，讓模型繼續
         messages.push({
           role: "user",
           content: "請繼續你的回應。"
@@ -148,113 +119,40 @@ async function agentLoop(userMessage: string): Promise<string> {
 }`}
       />
 
-      <h2 id="tool-execution-flow">工具執行流程</h2>
+      <h2 id="safety-limits">安全機制</h2>
       <p>
-        在 Agent Loop 的每次迭代中，模型可能請求執行一個或多個工具。
-        工具的執行遵循以下規則：
+        Agent Loop 不會無限跑下去。系統設有多重保護：
       </p>
       <ul>
         <li>
-          <strong>權限檢查</strong>：工具執行前會檢查權限設定。某些工具（如 Read、Glob）
-          預設為自動允許，而破壞性操作（如 Bash 的 rm 指令）則需要使用者確認。
+          <strong>最大迭代次數</strong> — 超過上限會強制停止並通知你
         </li>
         <li>
-          <strong>平行執行</strong>：當模型回傳多個獨立的工具呼叫時，
-          這些工具可以被平行執行以提升效率。
+          <strong>Token 預算</strong> — 總消耗受監控，接近上限時會壓縮上下文
         </li>
         <li>
-          <strong>結果格式化</strong>：工具執行結果會被格式化為結構化的訊息，
-          包含成功/失敗狀態與輸出內容，然後作為 <code>tool_result</code> 送回模型。
-        </li>
-      </ul>
-
-      <CodeBlock
-        language="typescript"
-        filename="tool-execution.ts"
-        code={`// 工具執行流程
-async function executeTools(
-  content: ContentBlock[]
-): Promise<ToolResultMessage[]> {
-  const toolCalls = content.filter(
-    (block) => block.type === "tool_use"
-  );
-
-  const results = await Promise.all(
-    toolCalls.map(async (call) => {
-      // 檢查工具權限
-      const permitted = await checkPermission(call.name, call.input);
-      if (!permitted) {
-        return {
-          type: "tool_result",
-          tool_use_id: call.id,
-          content: "使用者拒絕了此工具的執行。",
-          is_error: true,
-        };
-      }
-
-      try {
-        const output = await runTool(call.name, call.input);
-        return {
-          type: "tool_result",
-          tool_use_id: call.id,
-          content: output,
-        };
-      } catch (error) {
-        return {
-          type: "tool_result",
-          tool_use_id: call.id,
-          content: \`工具執行失敗: \${error.message}\`,
-          is_error: true,
-        };
-      }
-    })
-  );
-
-  return results;
-}`}
-      />
-
-      <h2 id="iteration-limits">迭代限制與安全機制</h2>
-      <p>
-        Agent Loop 並非無限運行。Claude Code 設有多重安全機制來防止迴圈失控：
-      </p>
-      <ul>
-        <li>
-          <strong>最大迭代次數</strong>：系統對單次對話的迴圈迭代次數有上限設定，
-          超過上限後會強制停止並通知使用者。
-        </li>
-        <li>
-          <strong>Token 預算</strong>：每次對話的總 token 消耗受到監控，
-          接近上限時代理會嘗試壓縮上下文或結束迴圈。
-        </li>
-        <li>
-          <strong>逾時保護</strong>：單一工具的執行時間有上限（預設為 120 秒），
-          避免單一操作阻塞整個迴圈。
+          <strong>逾時保護</strong> — 單一工具執行上限 120 秒，避免阻塞
         </li>
       </ul>
 
       <CalloutBox type="warning" title="注意迴圈行為">
-        如果你發現代理陷入重複執行相同操作的迴圈中（例如反覆讀取同一個檔案或重試相同的指令），
-        這通常是提示語設計不夠明確，或者任務描述存在歧義。此時應該中斷代理並重新調整提示語，
-        而非等待迴圈自然結束消耗 token。
+        如果代理反覆執行相同操作（重複讀同一個檔案、重試同一個指令），通常是提示語不夠明確。
+        此時應該中斷代理重新調整提示語，不要等迴圈自然結束浪費 token。
       </CalloutBox>
 
-      <h2 id="debugging-agent-loop">除錯 Agent Loop</h2>
+      <h2 id="debugging">除錯技巧</h2>
       <p>
-        有效地除錯 Agent Loop 需要理解每次迭代中發生了什麼。以下是實用的除錯策略：
+        有效除錯的三個觀察點：
       </p>
       <ol>
         <li>
-          <strong>觀察工具呼叫序列</strong>：注意代理選擇了哪些工具、以什麼順序呼叫。
-          如果順序不合理（例如先寫入再讀取），代表提示語可能需要調整。
+          <strong>觀察工具呼叫序列</strong> — 如果順序不合理（先寫再讀），代表提示語需要調整
         </li>
         <li>
-          <strong>檢查工具輸入參數</strong>：確認代理傳給工具的參數是否正確，
-          例如檔案路徑是否為絕對路徑、指令語法是否正確。
+          <strong>檢查工具輸入參數</strong> — 檔案路徑是否正確、指令語法是否正確
         </li>
         <li>
-          <strong>追蹤 stop_reason</strong>：如果看到連續的 <code>max_tokens</code>，
-          可能是回應結構過於冗長，需要引導代理更精簡地回答。
+          <strong>追蹤 stop_reason</strong> — 連續 <code>max_tokens</code> 代表回應太冗長
         </li>
       </ol>
 
@@ -263,14 +161,13 @@ async function executeTools(
         code={`# 透過 verbose 模式觀察 Agent Loop 的行為
 claude --verbose
 
-# 使用 API 模式時可以在日誌中追蹤每次迭代
+# 使用 API 模式追蹤每次迭代
 claude api --output-format json 2>debug.log`}
       />
 
       <CalloutBox type="tip" title="實務建議">
-        在設計提示語時，盡可能讓目標明確且可驗證。例如「修改 app.ts 中的 getUser 函式，
-        讓它支援以 email 查詢」比「改善 getUser 函式」好得多。明確的目標能幫助代理
-        更快地判斷何時應該結束迴圈。
+        讓目標明確且可驗證。「修改 app.ts 中的 getUser 函式，讓它支援以 email 查詢」
+        比「改善 getUser 函式」好得多。明確的目標能幫助代理更快判斷何時結束迴圈。
       </CalloutBox>
     </>
   );
